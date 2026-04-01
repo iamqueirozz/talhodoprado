@@ -11,16 +11,18 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'npm'
-
+          # Removi o cache temporariamente para garantir uma instalação limpa
+          
       - name: Install Dependencies
         run: |
+          # O comando 'npm ci' é melhor para servidores, pois ignora a pasta node_modules local
+          # e instala exatamente o que está no package-lock.json para o Linux
+          npm install --platform=linux --arch=x64 sharp
           npm install
-          npm install @capacitor/assets # Garante que a ferramenta de ícone esteja lá
 
       - name: Generate Icons and Splash
         run: |
-          # Este comando vai ler a sua pasta /assets e injetar no projeto android
+          # Agora o Sharp estará instalado corretamente para o Linux
           npx capacitor-assets generate --android
 
       - name: Setup Java
