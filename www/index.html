@@ -116,6 +116,9 @@
         .pedido-cliente { font-size: 16px; font-weight: bold; margin-bottom: 5px; color: #222; }
         .pedido-meta { font-size: 13px; color: #555; margin-bottom: 12px; line-height: 1.4; }
         
+        /* ESTILO LEVANTAMENTO */
+        .levantamento-box { background: #fff8e1; color: #f57f17; font-size: 12px; font-weight: bold; padding: 8px; border-radius: 6px; margin-bottom: 10px; border: 1px solid #ffe082; display: flex; align-items: center; gap: 6px; }
+
         .pedido-itens { background: #fff5f5; padding: 10px; border-radius: 8px; font-size: 14px; border: 1px solid #ffebea; }
         .item-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #ffdedd; }
         .item-row:last-child { border-bottom: none; }
@@ -636,13 +639,19 @@
         function p_renderizarPedidos(pedidos) {
             const container = document.getElementById('containerPedidos');
             container.innerHTML = '';
-            if(pedidos.length === 0) { container.innerHTML = '<div style="text-align:center; padding:40px; color:#999; grid-column:1/-1;">Sem pedidos recentes.</div>'; return; }
+            if(pedidos.length === 0) { container.innerHTML = '<div style="text-align:center; padding:40px; color:#999; grid-column: 1/-1;">Sem pedidos recentes.</div>'; return; }
             
             pedidos.forEach(p => {
                 const data = new Date(p.date_created).toLocaleString('pt-PT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute:'2-digit' });
                 const total = parseFloat(p.total).toFixed(2);
                 const obs = p.customer_note ? `<div class="obs-box">📝 ${p.customer_note}</div>` : '';
                 
+                // DATA DE LEVANTAMENTO
+                let pickupStr = "Não agendado";
+                const metaDate = p.meta_data.find(m => m.key === '_delivery_date' || m.key === 'pickup_date' || m.key === '_pickup_date');
+                const metaTime = p.meta_data.find(m => m.key === '_delivery_time' || m.key === 'pickup_time');
+                if (metaDate) pickupStr = metaDate.value + (metaTime ? ' às ' + metaTime.value : '');
+
                 const statusInfo = WC_STATUS_LABELS[p.status] || { label: p.status, color: '#ccc' };
                 const stClass = `st-${p.status}`;
 
@@ -675,7 +684,8 @@
                             <span class="status-badge" style="color:${statusInfo.color}"><i class="fas ${statusInfo.icon}"></i> ${statusInfo.label}</span>
                         </div>
                         <div class="pedido-body">
-                            <div class="pedido-cliente"><i class="fas fa-user"></i> ${p.billing.first_name} ${p.billing.last_name}</div>
+                            <div class="levantamento-box"><i class="fas fa-clock"></i> Levantamento: ${pickupStr}</div>
+                            <div class="pedido-cliente">${p.billing.first_name} ${p.billing.last_name}</div>
                             <div class="pedido-meta"><span>${p.billing.phone}</span><br><span>${p.billing.address_1}</span></div>
                             ${obs}<div class="pedido-itens">${itensHtml}<div class="total-box">Total: €${total}</div></div>
                         </div>
