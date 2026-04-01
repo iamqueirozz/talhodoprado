@@ -1,0 +1,935 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#a8211a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>Gestor Talho do Prado</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        /* --- ESTILOS GERAIS --- */
+        :root {
+            --primary: #a8211a;
+            --bg: #f4f6f8;
+            --text: #333;
+            /* Cores dos Status */
+            --st-pending: #ffc107;   /* Amarelo */
+            --st-processing: #17a2b8; /* Azul */
+            --st-on-hold: #fd7e14;    /* Laranja */
+            --st-completed: #28a745;  /* Verde */
+            --st-cancelled: #dc3545;  /* Vermelho */
+            --st-refunded: #6c757d;   /* Cinza */
+        }
+
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
+            margin: 0; padding: 0; background: var(--bg); color: var(--text);
+            padding-bottom: 80px; /* Espaço para menu inferior */
+        }
+        
+        #app-container { display: none; padding: 10px; max-width: 1200px; margin: 0 auto; }
+
+        /* --- LOGIN RESPONSIVO --- */
+        #login-screen {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(135deg, #a8211a, #6e100b); 
+            display: flex; align-items: center; justify-content: center;
+            z-index: 9999; flex-direction: column; padding: 20px;
+            box-sizing: border-box;
+        }
+        .login-card {
+            background: white; 
+            padding: 30px 20px; 
+            border-radius: 16px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.3); 
+            width: 90%; /* Ocupa 90% da tela em mobile */
+            max-width: 350px; /* Trava em 350px no desktop */
+            text-align: center;
+        }
+        .login-input { 
+            width: 100%; padding: 15px; margin: 10px 0; 
+            border: 2px solid #eee; border-radius: 8px; 
+            font-size: 16px; box-sizing: border-box; 
+        }
+        .btn-login { 
+            background: #222; color: white; border: none; 
+            padding: 15px; width: 100%; border-radius: 8px; 
+            font-weight: bold; cursor: pointer; margin-top: 10px; font-size: 16px;
+        }
+
+        /* --- NAVEGAÇÃO --- */
+        .tab-nav { 
+            position: fixed; bottom: 0; left: 0; width: 100%; height: 65px;
+            background: #ffffff; border-top: 1px solid #e0e0e0;
+            display: flex; justify-content: space-around; align-items: center;
+            z-index: 1000;
+        }
+        .tab-btn { 
+            flex: 1; border: none; background: transparent; 
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            color: #999; cursor: pointer; position: relative;
+        }
+        .tab-btn i { font-size: 22px; margin-bottom: 4px; }
+        .tab-btn span.label { font-size: 11px; font-weight: 600; }
+        .tab-btn.active { color: var(--primary); }
+        .badge-count { 
+            position: absolute; top: -4px; right: 25%; background: #222; color: white; 
+            font-size: 10px; padding: 2px 6px; border-radius: 10px; display: none;
+        }
+        
+        .tab-content { display: none; padding-top: 10px; }
+        .tab-content.active { display: block; animation: fadeIn 0.3s; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        /* --- STATUS BAR & CARDS --- */
+        .status-bar { 
+            display: flex; justify-content: space-between; align-items: center; 
+            background: #fff; padding: 15px; border-radius: 12px; margin-bottom: 15px; 
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05); border-left: 4px solid var(--primary);
+        }
+        .live-indicator { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: bold; color: #28a745; }
+        .pulse { width: 8px; height: 8px; background: #28a745; border-radius: 50%; animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.7); } 100% { box-shadow: 0 0 0 6px rgba(40, 167, 69, 0); } }
+
+        .pedidos-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 15px; }
+        
+        .pedido-card { 
+            background: white; border-radius: 12px; overflow: hidden; 
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08); border-left: 6px solid #ccc; 
+            position: relative;
+        }
+        /* Classes CSS baseadas no status em inglês (interno), mas visualmente controlado */
+        .pedido-card.st-pending { border-left-color: var(--st-pending); }
+        .pedido-card.st-processing { border-left-color: var(--st-processing); }
+        .pedido-card.st-on-hold { border-left-color: var(--st-on-hold); }
+        .pedido-card.st-completed { border-left-color: var(--st-completed); opacity: 0.85; }
+        .pedido-card.st-cancelled { border-left-color: var(--st-cancelled); opacity: 0.6; }
+        
+        .pedido-header { 
+            padding: 10px 15px; background: #f8f9fa; border-bottom: 1px solid #eee; 
+            display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: #666;
+        }
+        .status-badge { font-weight: bold; font-size: 11px; padding: 3px 8px; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+        .pedido-body { padding: 15px; }
+        .pedido-cliente { font-size: 16px; font-weight: bold; margin-bottom: 5px; color: #222; }
+        .pedido-meta { font-size: 13px; color: #555; margin-bottom: 12px; line-height: 1.4; }
+        
+        .pedido-itens { background: #fff5f5; padding: 10px; border-radius: 8px; font-size: 14px; border: 1px solid #ffebea; }
+        .item-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #ffdedd; }
+        .item-row:last-child { border-bottom: none; }
+        .item-peso { font-weight: 800; color: var(--primary); font-size: 15px; margin-right: 5px; }
+        .total-box { font-size: 16px; font-weight: bold; text-align: right; color: var(--primary); margin-top: 10px; padding-top: 5px; border-top: 2px dashed #ffdedd; }
+
+        .pedido-acoes { 
+            padding: 10px 15px; background: #fff; border-top: 1px solid #eee; 
+            display: flex; gap: 8px; justify-content: flex-end;
+        }
+        .btn-acao { 
+            padding: 10px 12px; border-radius: 6px; border: 1px solid #ddd; 
+            background: white; cursor: pointer; font-size: 12px; font-weight: bold; flex: 1;
+            display: flex; align-items: center; justify-content: center; gap: 5px;
+        }
+        .btn-acao.primary { background: var(--primary); color: white; border: none; }
+        .btn-acao.success { background: var(--st-completed); color: white; border: none; }
+        .btn-acao.danger { background: #fff; color: var(--st-cancelled); border-color: var(--st-cancelled); }
+        .btn-acao.neutral { background: #f8f9fa; color: #666; border-color: #ccc; }
+
+        /* --- FORMULÁRIOS --- */
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+        input, select, textarea { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; box-sizing: border-box; background: #fff; }
+        input:focus { border-color: var(--primary); outline: none; }
+        button.btn-primary { background: var(--primary); color: white; border: none; padding: 12px; border-radius: 8px; width: 100%; font-weight: bold; cursor: pointer; }
+        
+        .cat-list-box { max-height: 120px; overflow-y: auto; border: 1px solid #eee; margin-top: 5px; background: #fff; border-radius: 8px; }
+        .categoria-item { padding: 10px; border-bottom: 1px solid #eee; font-size: 13px; cursor: pointer; }
+        .categoria-item.selecionada { background: #fff0f0; color: var(--primary); font-weight: bold; }
+        .thumb-preview { width: 50px; height: 50px; object-fit: cover; border-radius: 4px; border: 1px solid #ddd; }
+
+        /* --- ESTILOS DE UPLOAD & GALERIA --- */
+        .action-area {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;
+        }
+        .upload-area, .gallery-btn-area {
+            background: #f8f9fa; border: 2px dashed #ddd; border-radius: 8px;
+            padding: 10px; text-align: center; position: relative;
+            display: flex; align-items: center; justify-content: center; cursor: pointer;
+            font-size: 12px; font-weight: bold; color: #555; height: 50px;
+        }
+        .upload-area:active, .gallery-btn-area:active { background: #eee; }
+        
+        input[type="file"] {
+            position: absolute; left: 0; top: 0; width: 100%; height: 100%;
+            opacity: 0; cursor: pointer;
+        }
+        .loading-upload { display:none; color: var(--primary); font-weight: bold; font-size: 12px; margin-top: 5px; grid-column: 1/-1; text-align: center;}
+
+        /* --- MODAL DA GALERIA --- */
+        #modalGaleria .modal-content { max-width: 800px; height: 80vh; }
+        .media-grid { 
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 8px; 
+            padding-bottom: 20px;
+        }
+        .media-item {
+            aspect-ratio: 1/1; overflow: hidden; border-radius: 6px; border: 2px solid transparent; cursor: pointer; background: #eee;
+        }
+        .media-item img { width: 100%; height: 100%; object-fit: cover; }
+        .media-item:hover { border-color: var(--primary); opacity: 0.8; }
+        
+        .btn-load-more {
+            display: block; width: 100%; padding: 10px; background: #eee; border: none; 
+            color: #555; font-weight: bold; margin-top: 10px; border-radius: 6px; cursor: pointer;
+        }
+
+
+        /* --- MODAL GERAL --- */
+        .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 2000; align-items: center; justify-content: center; }
+        .modal-content { background: white; width: 95%; max-width: 600px; max-height: 90vh; border-radius: 12px; display: flex; flex-direction: column; }
+        .modal-header { padding: 15px; background: var(--primary); color: white; border-radius: 12px 12px 0 0; display: flex; justify-content: space-between; align-items: center; }
+        .modal-body { padding: 20px; overflow-y: auto; }
+        .obs-box { font-size: 12px; color: #d63384; background: #fff0f6; padding: 5px; border-radius: 4px; margin-top: 5px; font-style: italic; }
+        select:disabled { background: #e9ecef; color: #6c757d; cursor: not-allowed; }
+
+        @media (min-width: 800px) {
+            .tab-nav { max-width: 400px; left: 50%; transform: translateX(-50%); border-radius: 20px 20px 0 0; box-shadow: 0 -5px 20px rgba(0,0,0,0.1); border:none; bottom: 0; }
+        }
+    </style>
+</head>
+<body>
+
+    <audio id="audioAlerta" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" preload="auto"></audio>
+
+    <div id="login-screen">
+        <div class="login-card">
+            <h2>🔪 Talho do Prado</h2>
+            <p style="color:#666; margin-bottom:20px; font-size:14px;">Acesso Profissional</p>
+            <form id="firebaseLoginForm">
+                <input type="email" id="emailLogin" class="login-input" placeholder="Email" required autocomplete="email">
+                <input type="password" id="senhaLogin" class="login-input" placeholder="Senha" required autocomplete="current-password">
+                <button type="submit" class="btn-login" id="btnLogin">ENTRAR</button>
+            </form>
+            <div id="login-msg" style="margin-top:15px; color:#d32f2f; font-weight:bold; font-size:14px;"></div>
+        </div>
+    </div>
+
+    <div id="app-container">
+        <div id="abaPedidos" class="tab-content active">
+            <h2 style="margin: 10px 0 20px; color: var(--primary);">Pedidos Recentes</h2>
+            <div class="status-bar">
+                <div class="live-indicator"><div class="pulse"></div> MONITORIZAÇÃO ATIVA</div>
+                <button onclick="p_carregarPedidos()" style="background:none; border:none; color:var(--primary); font-weight:bold; cursor:pointer;">
+                    <i class="fas fa-sync-alt"></i>
+                </button>
+            </div>
+            <div id="containerPedidos" class="pedidos-grid">
+                <div style="text-align:center; padding: 40px; color:#999; grid-column: 1/-1;">
+                    <i class="fas fa-spinner fa-spin fa-2x" style="color:var(--primary)"></i><br>A carregar...
+                </div>
+            </div>
+        </div>
+
+        <div id="abaCriar" class="tab-content">
+            <h2 style="margin: 10px 0 20px; color: var(--primary);">Novo Produto</h2>
+            <form id="formProduto">
+                <div class="form-row">
+                    <input type="text" id="nome" placeholder="Nome" required>
+                    <input type="number" id="preco" placeholder="Preço (€)" step="0.01" required>
+                </div>
+                
+                <div class="form-row">
+                    <select id="taxStatus">
+                        <option value="taxable">Taxável</option>
+                        <option value="none">Isento</option>
+                        <option value="shipping">Apenas Envio</option>
+                    </select>
+                    <select id="taxClass">
+                        <option value="">A carregar taxas...</option>
+                    </select>
+                </div>
+
+                <div class="form-row">
+                    <input type="text" id="pesoAcf" placeholder="Peso Texto (ex: 1kg)">
+                    <input type="text" id="pesoKg" placeholder="Woo Kg (ex: 1)" inputmode="decimal">
+                </div>
+                
+                <div style="margin-bottom:10px;">
+                    <input type="text" id="buscaCategoria" placeholder="Filtrar Categoria..." style="margin-bottom:0">
+                    <div id="listaCategorias" class="cat-list-box">Carregando...</div>
+                    <small id="selecionadas" style="color:#666; margin-left:5px;">0 selecionadas</small>
+                </div>
+
+                <div class="form-row">
+                    <input type="text" id="skuBase" placeholder="SKU (Auto)">
+                    <select id="status">
+                        <option value="publish">Publicado</option>
+                        <option value="draft">Rascunho</option>
+                    </select>
+                </div>
+                
+                <div class="action-area">
+                    <div class="upload-area">
+                        <i class="fas fa-cloud-upload-alt" style="margin-right:5px"></i> Carregar Imagem
+                        <input type="file" id="fileInputCriar" accept="image/*">
+                    </div>
+                    <div class="gallery-btn-area" onclick="abrirGaleria('urlsImagens')">
+                        <i class="fas fa-images" style="margin-right:5px"></i> Galeria
+                    </div>
+                    <div id="loadingCriar" class="loading-upload"><i class="fas fa-spinner fa-spin"></i> A enviar para o site...</div>
+                </div>
+
+                <textarea id="urlsImagens" rows="2" placeholder="URLs das Imagens"></textarea>
+                <button type="submit" id="btnSubmit" class="btn-primary" style="margin-top:10px;">ADICIONAR PRODUTO</button>
+            </form>
+            <div id="resultado" style="margin-top:10px"></div>
+        </div>
+
+        <div id="abaGerenciar" class="tab-content">
+            <h2 style="margin: 10px 0 20px; color: var(--primary);">Inventário</h2>
+            <div style="display:flex; gap:10px; margin-bottom:15px;">
+                <input type="text" id="buscaProduto" placeholder="Procurar nome ou SKU..." style="margin:0">
+                <button class="btn-primary" onclick="m_carregarProdutos()" style="width:auto"><i class="fas fa-search"></i></button>
+            </div>
+            <div id="listaProdutos" style="background:white; border-radius:8px; overflow:hidden; border:1px solid #eee;">
+                <div style="padding:20px; text-align:center; color:#666;">A carregar lista...</div>
+            </div>
+        </div>
+
+        <div class="tab-nav">
+            <button class="tab-btn active" onclick="abrirAba(event, 'abaPedidos')"><i class="fas fa-receipt"></i><span class="label">Pedidos</span><span id="badgePedidos" class="badge-count">0</span></button>
+            <button class="tab-btn" onclick="abrirAba(event, 'abaCriar')"><i class="fas fa-plus-circle"></i><span class="label">Novo</span></button>
+            <button class="tab-btn" onclick="abrirAba(event, 'abaGerenciar')"><i class="fas fa-boxes"></i><span class="label">Stock</span></button>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="modalEditar">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 style="margin:0">Editar Produto</h3>
+                <button onclick="document.getElementById('modalEditar').style.display='none'" style="background:none;border:none;color:white;font-size:24px;">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="formProdutoEditar">
+                    <input type="hidden" id="editId">
+                    <div class="form-row">
+                        <div><label style="font-size:12px; font-weight:bold;">Nome</label><input type="text" id="nomeEdit"></div>
+                        <div><label style="font-size:12px; font-weight:bold;">Preço (€)</label><input type="number" id="precoEdit" step="0.01"></div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div><label style="font-size:12px; font-weight:bold;">Status Imposto</label>
+                            <select id="taxStatusEdit">
+                                <option value="taxable">Taxável</option>
+                                <option value="none">Isento</option>
+                                <option value="shipping">Apenas Envio</option>
+                            </select>
+                        </div>
+                        <div><label style="font-size:12px; font-weight:bold;">Classe Imposto</label>
+                            <select id="taxClassEdit"><option value="">A carregar...</option></select>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div><label style="font-size:12px; font-weight:bold;">Peso (Texto)</label><input type="text" id="pesoAcfEdit"></div>
+                        <div><label style="font-size:12px; font-weight:bold;">Woo Kg (Calc)</label><input type="text" id="pesoKgEdit" inputmode="decimal"></div>
+                    </div>
+                    <div><label style="font-size:12px; font-weight:bold;">SKU</label><input type="text" id="skuEdit"></div>
+                    
+                    <div style="margin-top:10px;">
+                        <label style="font-size:12px; font-weight:bold;">Imagens (URLs)</label>
+                        
+                        <div class="action-area" style="margin-bottom:5px;">
+                            <div class="upload-area">
+                                <i class="fas fa-cloud-upload-alt" style="margin-right:5px"></i> Enviar
+                                <input type="file" id="fileInputEditar" accept="image/*">
+                            </div>
+                            <div class="gallery-btn-area" onclick="abrirGaleria('urlsImagensEdit')">
+                                <i class="fas fa-images" style="margin-right:5px"></i> Galeria
+                            </div>
+                            <div id="loadingEditar" class="loading-upload"><i class="fas fa-spinner fa-spin"></i> A enviar...</div>
+                        </div>
+
+                        <textarea id="urlsImagensEdit" rows="3"></textarea>
+                        <div id="previewImagensEdit" style="display:flex; gap:5px; overflow-x:auto; margin-top:5px;"></div>
+                    </div>
+                    <div style="margin-top:15px; display:flex; gap:10px;">
+                        <button type="submit" class="btn-primary">SALVAR</button>
+                        <button type="button" id="btnExcluir" style="background:#fff; color:#dc3545; border:1px solid #dc3545; border-radius:8px; width:30%;">APAGAR</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="modalGaleria" style="z-index: 2500;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 style="margin:0">Biblioteca Media</h3>
+                <button onclick="document.getElementById('modalGaleria').style.display='none'" style="background:none;border:none;color:white;font-size:24px;">&times;</button>
+            </div>
+            <div class="modal-body" id="galeriaBody">
+                <div class="media-grid" id="gridMedia">
+                    </div>
+                <div id="msgGaleria" style="text-align:center; padding:20px; color:#666;">A carregar...</div>
+                <button id="btnLoadMore" class="btn-load-more" style="display:none" onclick="g_carregarMais()">Carregar Mais</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getAuth, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+        // SUA CONFIGURAÇÃO
+        const firebaseConfig = {
+            apiKey: "AIzaSyDtEBxWxAYNBq7yjOSCqdmqZ76GwE5GbRs",
+            authDomain: "talho-do-prado.firebaseapp.com",
+            projectId: "talho-do-prado",
+            storageBucket: "talho-do-prado.firebasestorage.app",
+            messagingSenderId: "815630129988",
+            appId: "1:815630129988:web:8240af4223184d38279511"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const authService = getAuth(app);
+
+        // =======================================================
+        //     CONFIGURAÇÕES DO WOOCOMMERCE & AUTENTICAÇÃO
+        // =======================================================
+        const SITE_URL = 'https://talhodoprado.pt';
+        
+        // 1. CHAVES DA LOJA (PARA PEDIDOS E PRODUTOS - MANTIDAS!)
+        const CONSUMER_KEY = 'ck_2aed1d06c23fa27d527673ae588b7bf9fa56abde';
+        const CONSUMER_SECRET = 'cs_c5b8442c7dbb7ad1e05dd595a9643304b3b29b46';
+        const authWoo = "Basic " + btoa(CONSUMER_KEY + ":" + CONSUMER_SECRET);
+
+        // 2. CHAVES DE ADMIN (APENAS PARA MEDIA / GALERIA)
+        const WP_USER = 'qwsolutions';
+        const WP_APP_PASS = 'ClJN sJtd tdoB 3CRz SMBG ZprF';
+        const authMedia = "Basic " + btoa(WP_USER + ":" + WP_APP_PASS);
+        // =======================================================
+
+        const KEY_MPC = '_wc_price_calculator'; 
+        const CONFIG_MEDICAO_PESO = {
+            calculator_type: 'weight',
+            weight: { pricing: { enabled: 'yes' }, weight: { label: 'Peso', unit: 'kg', editable: 'yes', accepted_input: 'free' } }
+        };
+
+        let cacheTodasCategorias = [];
+        let cacheTaxas = []; 
+        let criacao_categoriasSelecionadas = [];
+        let produtosCarregados = false;
+        
+        // --- LOGIN FIREBASE ---
+        document.getElementById('firebaseLoginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('emailLogin').value;
+            const pass = document.getElementById('senhaLogin').value;
+            const msg = document.getElementById('login-msg');
+            const btn = document.getElementById('btnLogin');
+
+            msg.textContent = "A autenticar...";
+            btn.disabled = true;
+
+            try {
+                await signInWithEmailAndPassword(authService, email, pass);
+                document.getElementById('audioAlerta').play().catch(()=>{}); 
+                document.getElementById('audioAlerta').pause();
+                document.getElementById('login-screen').style.display = 'none';
+                document.getElementById('app-container').style.display = 'block';
+
+                carregarCategoriasGlobal();
+                carregarTaxasGlobal();
+                iniciarMonitoramentoPedidos();
+
+            } catch (error) {
+                let textErr = "Erro: " + error.message;
+                if(error.code === 'auth/invalid-credential') textErr = "Dados incorretos.";
+                msg.textContent = textErr;
+                btn.disabled = false;
+            }
+        });
+
+        window.abrirAba = function(evt, nomeAba) {
+            document.querySelectorAll(".tab-content").forEach(el => el.classList.remove('active'));
+            document.querySelectorAll(".tab-btn").forEach(el => el.classList.remove('active'));
+            document.getElementById(nomeAba).classList.add('active');
+            if(evt) evt.currentTarget.classList.add('active');
+            if(nomeAba === 'abaPedidos') { document.getElementById('badgePedidos').style.display = 'none'; document.getElementById('badgePedidos').innerText = '0'; }
+            if(nomeAba === 'abaGerenciar' && (!produtosCarregados || document.getElementById('buscaProduto').value === '')) m_carregarProdutos();
+        };
+
+        // =========================================================
+        //                 LÓGICA DA GALERIA (NOVA)
+        // =========================================================
+        let galeriaPage = 1;
+        let galeriaDestinoId = '';
+
+        window.abrirGaleria = function(targetId) {
+            galeriaDestinoId = targetId;
+            galeriaPage = 1;
+            document.getElementById('gridMedia').innerHTML = '';
+            document.getElementById('modalGaleria').style.display = 'flex';
+            document.getElementById('btnLoadMore').style.display = 'none';
+            document.getElementById('msgGaleria').style.display = 'block';
+            document.getElementById('msgGaleria').innerText = 'A carregar biblioteca...';
+            
+            g_carregarMedia(1);
+        };
+
+        window.g_carregarMais = function() {
+            galeriaPage++;
+            g_carregarMedia(galeriaPage);
+        }
+
+        async function g_carregarMedia(page) {
+            try {
+                // Endpoint para listar media (usa authMedia)
+                const res = await fetch(`${SITE_URL}/wp-json/wp/v2/media?per_page=20&page=${page}&mime_type=image/jpeg,image/png`, {
+                    headers: { 'Authorization': authMedia }
+                });
+                
+                if(!res.ok) throw new Error("Erro ao carregar");
+                
+                const imagens = await res.json();
+                
+                document.getElementById('msgGaleria').style.display = 'none';
+                const grid = document.getElementById('gridMedia');
+
+                if(imagens.length === 0 && page === 1) {
+                    document.getElementById('msgGaleria').innerText = 'Sem imagens.';
+                    document.getElementById('msgGaleria').style.display = 'block';
+                    return;
+                }
+
+                imagens.forEach(img => {
+                    // Pega a URL do tamanho "thumbnail" ou "full"
+                    const thumbUrl = img.media_details.sizes?.thumbnail?.source_url || img.source_url;
+                    const fullUrl = img.source_url;
+
+                    const div = document.createElement('div');
+                    div.className = 'media-item';
+                    div.innerHTML = `<img src="${thumbUrl}" loading="lazy">`;
+                    div.onclick = () => g_selecionarImagem(fullUrl);
+                    grid.appendChild(div);
+                });
+
+                if(imagens.length >= 20) {
+                    document.getElementById('btnLoadMore').style.display = 'block';
+                    document.getElementById('btnLoadMore').innerText = 'Carregar Mais';
+                } else {
+                    document.getElementById('btnLoadMore').style.display = 'none';
+                }
+
+            } catch(e) {
+                document.getElementById('msgGaleria').innerText = 'Erro ao carregar biblioteca.';
+                document.getElementById('msgGaleria').style.display = 'block';
+            }
+        }
+
+        function g_selecionarImagem(url) {
+            const textarea = document.getElementById(galeriaDestinoId);
+            
+            if(textarea.value.trim() !== '') textarea.value += '\n';
+            textarea.value += url;
+
+            document.getElementById('modalGaleria').style.display = 'none';
+
+            // Se for na edição, atualiza o preview
+            if(galeriaDestinoId === 'urlsImagensEdit') {
+                atualizarPreviewEdit();
+            }
+        }
+
+        // --- FUNÇÃO DE UPLOAD PARA O WP MEDIA (TOKEN ADMIN) ---
+        window.f_uploadImagem = async function(file, loadingId, textareaId, callbackPreview) {
+            const loading = document.getElementById(loadingId);
+            loading.style.display = 'block';
+            
+            const cleanName = file.name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9.]/g, "_");
+
+            try {
+                const res = await fetch(`${SITE_URL}/wp-json/wp/v2/media`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': authMedia, // <--- TOKEN ADMIN
+                        'Content-Disposition': `attachment; filename="${cleanName}"`,
+                        'Content-Type': file.type || 'image/jpeg'
+                    },
+                    body: file
+                });
+
+                if(!res.ok) {
+                    const errTxt = await res.text();
+                    console.error("Erro upload:", errTxt);
+                    throw new Error(`Servidor respondeu: ${res.status} ${res.statusText}`);
+                }
+
+                const json = await res.json();
+                
+                const urlImagem = json.source_url;
+                const textarea = document.getElementById(textareaId);
+                
+                if(textarea.value.trim() !== '') textarea.value += '\n';
+                textarea.value += urlImagem;
+                
+                if(callbackPreview) callbackPreview();
+                
+            } catch(e) {
+                alert("Erro ao enviar imagem: " + e.message);
+            } finally {
+                loading.style.display = 'none';
+            }
+        };
+
+        // EVENTOS DOS INPUTS DE FICHEIRO
+        document.getElementById('fileInputCriar').addEventListener('change', function(e) {
+            if(this.files && this.files[0]) {
+                f_uploadImagem(this.files[0], 'loadingCriar', 'urlsImagens', null);
+            }
+        });
+
+        document.getElementById('fileInputEditar').addEventListener('change', function(e) {
+            if(this.files && this.files[0]) {
+                f_uploadImagem(this.files[0], 'loadingEditar', 'urlsImagensEdit', atualizarPreviewEdit);
+            }
+        });
+
+        // --- PEDIDOS (USA authWoo - Chaves da Loja) ---
+        const WC_STATUS_LABELS = {
+            'pending':    { label: 'Pendente', color: '#ffc107', icon: 'fa-clock' },
+            'processing': { label: 'Em Processamento', color: '#17a2b8', icon: 'fa-fire' },
+            'on-hold':    { label: 'Em Espera',   color: '#fd7e14', icon: 'fa-pause' },
+            'completed':  { label: 'Concluído',   color: '#28a745', icon: 'fa-check' },
+            'cancelled':  { label: 'Cancelado',   color: '#dc3545', icon: 'fa-times' },
+            'refunded':   { label: 'Reembolsado', color: '#6c757d', icon: 'fa-undo' },
+            'failed':     { label: 'Falhou',      color: '#dc3545', icon: 'fa-exclamation' }
+        };
+
+        let p_ultimosIds = [];
+        let p_primeiroCarregamento = true;
+
+        window.iniciarMonitoramentoPedidos = function() {
+            p_carregarPedidos();
+            setInterval(p_carregarPedidos, 15000); 
+        };
+
+        window.p_carregarPedidos = async function() {
+            try {
+                const res = await fetch(`${SITE_URL}/wp-json/wc/v3/orders?per_page=20`, { headers: { 'Authorization': authWoo } });
+                const pedidos = await res.json();
+                p_renderizarPedidos(pedidos);
+                p_verificarNovos(pedidos);
+            } catch (e) { console.error("Erro pedidos", e); }
+        };
+
+        function p_verificarNovos(pedidos) {
+            if (p_primeiroCarregamento) { p_ultimosIds = pedidos.map(p => p.id); p_primeiroCarregamento = false; return; }
+            const novos = pedidos.filter(p => !p_ultimosIds.includes(p.id));
+            if (novos.length > 0) {
+                const audio = document.getElementById('audioAlerta'); audio.currentTime = 0; audio.play().catch(()=>{});
+                const badge = document.getElementById('badgePedidos'); badge.innerText = novos.length; badge.style.display = 'inline-block';
+                p_ultimosIds = pedidos.map(p => p.id);
+            }
+        }
+
+        function p_renderizarPedidos(pedidos) {
+            const container = document.getElementById('containerPedidos');
+            container.innerHTML = '';
+            if(pedidos.length === 0) { container.innerHTML = '<div style="text-align:center; padding:40px; color:#999; grid-column:1/-1;">Sem pedidos recentes.</div>'; return; }
+            
+            pedidos.forEach(p => {
+                const data = new Date(p.date_created).toLocaleString('pt-PT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute:'2-digit' });
+                const total = parseFloat(p.total).toFixed(2);
+                const obs = p.customer_note ? `<div class="obs-box">📝 ${p.customer_note}</div>` : '';
+                
+                const statusInfo = WC_STATUS_LABELS[p.status] || { label: p.status, color: '#ccc' };
+                const stClass = `st-${p.status}`;
+
+                let itensHtml = p.line_items.map(item => {
+                    let lineTotal = parseFloat(item.total);
+                    let pesoProduto = 0.50; 
+                    if (item.meta_data && Array.isArray(item.meta_data)) {
+                        const metaPeso = item.meta_data.find(m => m.key === 'peso' || m.key === '_weight');
+                        if (metaPeso) { let v = parseFloat(metaPeso.value.toString().replace(',','.').replace(/[^\d.]/g, '')); if (!isNaN(v)) pesoProduto = v; }
+                    }
+                    if (item.weight && !isNaN(parseFloat(item.weight))) pesoProduto = parseFloat(item.weight);
+                    let displayQty = (item.quantity * pesoProduto).toFixed(2) + " kg";
+
+                    return `<div class="item-row"><span><span class="item-peso">${displayQty}</span> ${item.name}</span><span>€${lineTotal.toFixed(2)}</span></div>`;
+                }).join('');
+
+                let btns = '';
+                if(p.status === 'pending' || p.status === 'on-hold') {
+                    btns = `<button class="btn-acao danger" onclick="p_mudarStatus(${p.id}, 'cancelled')">Cancelar</button><button class="btn-acao primary" onclick="p_mudarStatus(${p.id}, 'processing')">ACEITAR</button>`;
+                } else if(p.status === 'processing') {
+                    btns = `<button class="btn-acao success" onclick="p_mudarStatus(${p.id}, 'completed')">ENTREGUE</button>`;
+                } else if(['cancelled','failed','completed'].includes(p.status)) {
+                    btns = `<button class="btn-acao neutral" onclick="p_apagarPedido(${p.id})">Fechar</button>`;
+                }
+
+                container.innerHTML += `
+                    <div class="pedido-card ${stClass}" id="pedido-${p.id}">
+                        <div class="pedido-header">
+                            <span>#${p.id} • ${data}</span>
+                            <span class="status-badge" style="color:${statusInfo.color}"><i class="fas ${statusInfo.icon}"></i> ${statusInfo.label}</span>
+                        </div>
+                        <div class="pedido-body">
+                            <div class="pedido-cliente"><i class="fas fa-user"></i> ${p.billing.first_name} ${p.billing.last_name}</div>
+                            <div class="pedido-meta"><span>${p.billing.phone}</span><br><span>${p.billing.address_1}</span></div>
+                            ${obs}<div class="pedido-itens">${itensHtml}<div class="total-box">Total: €${total}</div></div>
+                        </div>
+                        <div class="pedido-acoes">${btns}</div>
+                    </div>`;
+            });
+        }
+
+        window.p_mudarStatus = async function(id, novoStatus) {
+            const card = document.getElementById(`pedido-${id}`); card.style.opacity = '0.5';
+            try {
+                await fetch(`${SITE_URL}/wp-json/wc/v3/orders/${id}`, { method: 'PUT', headers: { 'Authorization': authWoo, 'Content-Type': 'application/json' }, body: JSON.stringify({ status: novoStatus }) });
+                p_carregarPedidos();
+            } catch (e) { alert("Erro status"); card.style.opacity = '1'; }
+        };
+
+        window.p_apagarPedido = async function(id) {
+            if(!confirm("Remover este pedido da lista?")) return;
+            const card = document.getElementById(`pedido-${id}`); card.style.opacity = '0.5';
+            try {
+                await fetch(`${SITE_URL}/wp-json/wc/v3/orders/${id}?force=true`, { method: 'DELETE', headers: { 'Authorization': authWoo } });
+                p_carregarPedidos();
+            } catch (e) { alert("Erro ao apagar"); card.style.opacity = '1'; }
+        };
+
+        // ======================== PRODUTOS & TAXAS ========================
+        
+        async function carregarTaxasGlobal() {
+            try {
+                const res = await fetch(`${SITE_URL}/wp-json/wc/v3/taxes/classes`, { headers: { 'Authorization': authWoo } });
+                const taxas = await res.json();
+                cacheTaxas = taxas; 
+                preencherSelectTaxas('taxClass');
+            } catch (e) {
+                console.error("Erro taxas", e);
+                document.getElementById('taxClass').innerHTML = '<option value="">Padrão</option>';
+            }
+        }
+
+        function preencherSelectTaxas(idElemento, valorSelecionado = '') {
+            const select = document.getElementById(idElemento);
+            select.innerHTML = '';
+            
+            const optPadrao = document.createElement('option');
+            optPadrao.value = '';
+            optPadrao.text = 'Padrão'; 
+            
+
+            cacheTaxas.forEach(tax => {
+                const opt = document.createElement('option');
+                opt.value = tax.slug; 
+                opt.text = tax.name; 
+                if(tax.slug === valorSelecionado) opt.selected = true;
+                select.appendChild(opt);
+            });
+        }
+        
+        function atualizarBloqueioImposto(idStatus, idClass) {
+            const statusVal = document.getElementById(idStatus).value;
+            const classSelect = document.getElementById(idClass);
+            
+            if (statusVal === 'none') {
+                classSelect.disabled = true;
+                classSelect.value = ''; 
+            } else {
+                classSelect.disabled = false;
+            }
+        }
+        
+        document.getElementById('taxStatus').addEventListener('change', () => {
+            atualizarBloqueioImposto('taxStatus', 'taxClass');
+        });
+        document.getElementById('taxStatusEdit').addEventListener('change', () => {
+            atualizarBloqueioImposto('taxStatusEdit', 'taxClassEdit');
+        });
+
+
+        async function carregarCategoriasGlobal() {
+            try {
+                const res = await fetch(`${SITE_URL}/wp-json/wc/v3/products/categories?per_page=100`, { headers: { 'Authorization': authWoo } });
+                cacheTodasCategorias = await res.json();
+                mostrarCategoriasCriar();
+            } catch(e) {}
+        }
+
+        function mostrarCategoriasCriar(filtro = '') {
+            const lista = document.getElementById('listaCategorias');
+            lista.innerHTML = '';
+            const filtradas = cacheTodasCategorias.filter(cat => cat.name.toLowerCase().includes(filtro.toLowerCase()));
+            filtradas.forEach(cat => {
+                const div = document.createElement('div');
+                div.className = `categoria-item ${criacao_categoriasSelecionadas.includes(cat.id) ? 'selecionada' : ''}`;
+                div.innerHTML = `<span>${cat.name}</span>`;
+                div.onclick = () => {
+                    const idx = criacao_categoriasSelecionadas.indexOf(cat.id);
+                    if (idx > -1) criacao_categoriasSelecionadas.splice(idx, 1);
+                    else criacao_categoriasSelecionadas.push(cat.id);
+                    mostrarCategoriasCriar(document.getElementById('buscaCategoria').value);
+                    document.getElementById('selecionadas').innerText = `${criacao_categoriasSelecionadas.length} selecionadas`;
+                };
+                lista.appendChild(div);
+            });
+        }
+        document.getElementById('buscaCategoria').addEventListener('input', (e) => mostrarCategoriasCriar(e.target.value));
+
+        document.getElementById('formProduto').addEventListener('submit', async e => {
+            e.preventDefault();
+            const btn = document.getElementById('btnSubmit');
+            btn.disabled = true; btn.innerText = "A Enviar...";
+            try {
+                const sku = document.getElementById('skuBase').value || `PROD-${Date.now().toString().slice(-4)}`;
+                const imagens = document.getElementById('urlsImagens').value.trim().split('\n').filter(u=>u).map(src=>({src}));
+                
+                let taxSt = document.getElementById('taxStatus').value;
+                let taxCl = (taxSt === 'none') ? '' : document.getElementById('taxClass').value;
+
+                // PREPARA META DATA 
+                let metaDataEnvio = [{ key: 'peso', value: document.getElementById('pesoAcf').value }];
+                
+                // --- INJEÇÃO AUTOMÁTICA DA CONFIGURAÇÃO DE PESO ---
+                metaDataEnvio.push({ key: KEY_MPC, value: CONFIG_MEDICAO_PESO });
+
+                const data = {
+                    name: document.getElementById('nome').value, regular_price: document.getElementById('preco').value,
+                    sku: sku, status: document.getElementById('status').value, 
+                    weight: document.getElementById('pesoKg').value,
+                    tax_status: taxSt,
+                    tax_class: taxCl,
+                    categories: criacao_categoriasSelecionadas.map(id => ({id})), images: imagens,
+                    meta_data: metaDataEnvio
+                };
+                const res = await fetch(`${SITE_URL}/wp-json/wc/v3/products`, {
+                    method: 'POST', headers: { 'Authorization': authWoo, 'Content-Type': 'application/json' }, body: JSON.stringify(data)
+                });
+                if(!res.ok) throw new Error("Erro API");
+                const json = await res.json();
+                document.getElementById('resultado').innerHTML = `<div style="color:green; padding:10px; border:1px solid green; border-radius:4px;">✅ Criado: ${json.id}</div>`;
+                e.target.reset(); criacao_categoriasSelecionadas = []; mostrarCategoriasCriar();
+                
+                document.getElementById('taxStatus').value = 'taxable';
+                document.getElementById('taxClass').disabled = false;
+                document.getElementById('taxClass').value = ''; 
+                
+                produtosCarregados = false; 
+            } catch(err) { alert("Erro: " + err.message); } finally { btn.disabled = false; btn.innerText = "ADICIONAR"; }
+        });
+
+        // --- GERENCIAR STOCK (USA authWoo) ---
+        window.m_carregarProdutos = async function() {
+            const termo = document.getElementById('buscaProduto').value;
+            const lista = document.getElementById('listaProdutos');
+            let endpoint = `${SITE_URL}/wp-json/wc/v3/products?per_page=20`;
+            if (termo) endpoint += `&search=${termo}`;
+
+            lista.innerHTML = '<div style="padding:20px; text-align:center"><i class="fas fa-spinner fa-spin" style="color:var(--primary)"></i> A carregar...</div>';
+            
+            try {
+                const res = await fetch(endpoint, { headers: { 'Authorization': authWoo } });
+                const prods = await res.json();
+                produtosCarregados = true;
+                
+                if (prods.length === 0) {
+                    lista.innerHTML = '<div style="padding:20px; text-align:center">Nenhum produto encontrado.</div>';
+                    return;
+                }
+
+                lista.innerHTML = prods.map(p => `
+                    <div style="padding:15px; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center;">
+                        <div style="display:flex; align-items:center; gap:10px;">
+                            ${p.images.length > 0 ? `<img src="${p.images[0].src}" class="thumb-preview">` : '<div style="width:50px;height:50px;background:#eee;border-radius:4px;"></div>'}
+                            <div>
+                                <div style="font-weight:bold;">${p.name}</div>
+                                <div style="font-size:12px; color:#666;">SKU: ${p.sku} | €${p.price} | ${p.status === 'publish' ? '<span style="color:green">●</span>' : '<span style="color:orange">●</span>'}</div>
+                            </div>
+                        </div>
+                        <button class="btn-primary" style="width:auto; padding:8px 15px; font-size:12px;" onclick="abrirEdicao(${p.id})">EDITAR</button>
+                    </div>
+                `).join('');
+            } catch(e) { lista.innerHTML = "Erro ao carregar."; }
+        };
+
+        // --- PREVIEW E EDIÇÃO (USA authWoo) ---
+        function atualizarPreviewEdit() {
+            const urls = document.getElementById('urlsImagensEdit').value.trim().split('\n').filter(u => u.trim());
+            const container = document.getElementById('previewImagensEdit');
+            container.innerHTML = urls.map(u => `<img src="${u.trim()}" class="thumb-preview">`).join('');
+        }
+        document.getElementById('urlsImagensEdit').addEventListener('input', atualizarPreviewEdit);
+
+        window.abrirEdicao = async function(id) {
+            try {
+                const res = await fetch(`${SITE_URL}/wp-json/wc/v3/products/${id}`, { headers: { 'Authorization': authWoo } });
+                const p = await res.json();
+                document.getElementById('editId').value = p.id;
+                document.getElementById('nomeEdit').value = p.name;
+                document.getElementById('precoEdit').value = p.regular_price;
+                document.getElementById('skuEdit').value = p.sku;
+                
+                const st = p.tax_status || 'taxable';
+                document.getElementById('taxStatusEdit').value = st;
+                preencherSelectTaxas('taxClassEdit', p.tax_class);
+                atualizarBloqueioImposto('taxStatusEdit', 'taxClassEdit');
+
+                document.getElementById('pesoKgEdit').value = p.weight || ''; 
+                const metaPeso = p.meta_data.find(m => m.key === 'peso');
+                document.getElementById('pesoAcfEdit').value = metaPeso ? metaPeso.value : '';
+                
+                const imageUrls = p.images.map(img => img.src).join('\n');
+                document.getElementById('urlsImagensEdit').value = imageUrls;
+                atualizarPreviewEdit();
+
+                document.getElementById('modalEditar').style.display = 'flex';
+                document.getElementById('btnExcluir').onclick = async () => {
+                    if(confirm("Tem certeza?")) {
+                        await fetch(`${SITE_URL}/wp-json/wc/v3/products/${id}?force=true`, { method:'DELETE', headers: { 'Authorization': authWoo } });
+                        document.getElementById('modalEditar').style.display = 'none';
+                        m_carregarProdutos();
+                    }
+                };
+            } catch(e) { alert("Erro ao abrir produto"); }
+        };
+
+        document.getElementById('formProdutoEditar').addEventListener('submit', async e => {
+            e.preventDefault();
+            const id = document.getElementById('editId').value;
+            const imagensRaw = document.getElementById('urlsImagensEdit').value.trim().split('\n');
+            const imagensFormatadas = imagensRaw.filter(u => u.trim()).map(src => ({ src: src.trim() }));
+
+            let taxSt = document.getElementById('taxStatusEdit').value;
+            let taxCl = (taxSt === 'none') ? '' : document.getElementById('taxClassEdit').value;
+
+            // META DADOS ATUALIZADOS
+            let metaDataEnvio = [{ key: 'peso', value: document.getElementById('pesoAcfEdit').value }];
+            
+            // --- INJEÇÃO AUTOMÁTICA NA EDIÇÃO (SEMPRE) ---
+            metaDataEnvio.push({ key: KEY_MPC, value: CONFIG_MEDICAO_PESO });
+
+            const data = {
+                name: document.getElementById('nomeEdit').value, 
+                regular_price: document.getElementById('precoEdit').value,
+                sku: document.getElementById('skuEdit').value, 
+                weight: document.getElementById('pesoKgEdit').value,
+                tax_status: taxSt,
+                tax_class: taxCl,
+                meta_data: metaDataEnvio,
+                images: imagensFormatadas
+            };
+            
+            await fetch(`${SITE_URL}/wp-json/wc/v3/products/${id}`, {
+                method: 'PUT', headers: { 'Authorization': authWoo, 'Content-Type': 'application/json' }, body: JSON.stringify(data)
+            });
+            document.getElementById('modalEditar').style.display = 'none';
+            m_carregarProdutos();
+        });
+    </script>
+</body>
+</html>

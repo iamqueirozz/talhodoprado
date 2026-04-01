@@ -1,0 +1,6 @@
+{
+  "appId": "com.talhodoprado.monitor",
+  "appName": "Talho do Prado",
+  "webDir": "www",
+  "bundledWebRuntime": false
+}
