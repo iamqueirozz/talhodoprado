@@ -1,29 +1,44 @@
 name: Build Android APK
 on: [push]
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: 'npm'
+
       - name: Install Dependencies
-        run: npm install
-      - name: Capacitor Sync
         run: |
-          npx cap add android
-          npx cap copy android
+          npm install
+          npm install @capacitor/assets # Garante que a ferramenta de ícone esteja lá
+
+      - name: Generate Icons and Splash
+        run: |
+          # Este comando vai ler a sua pasta /assets e injetar no projeto android
+          npx capacitor-assets generate --android
+
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
           java-version: '17'
+          cache: 'gradle'
+
+      - name: Capacitor Sync
+        run: npx cap sync android
+
       - name: Build APK
         run: |
           cd android
           chmod +x gradlew
           ./gradlew assembleDebug
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
